@@ -4,7 +4,7 @@ services:
     build:
       context: .
       dockerfile: .docker/dev.dockerfile
-    image: rendiriz/next-example:dev
+    image: registry.gitlab.com/rendiriz/next-example:dev
     container_name: 'next-example-dev'
     ports:
       - '15000:3000'
