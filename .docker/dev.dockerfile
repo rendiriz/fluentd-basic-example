@@ -1,30 +1,27 @@
-#Creates a layer from node:alpine image.
-FROM node:alpine
+FROM node:14-alpine AS deps
+RUN apk add --no-cache libc6-compat
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
 
-#Creates directories
-RUN mkdir -p /usr/src/app
-
-#Sets an environment variable
-ENV PORT 3000
-
-#Sets the working directory for any RUN, CMD, ENTRYPOINT, COPY, and ADD commands
-WORKDIR /usr/src/app
-
-#Copy new files or directories into the filesystem of the container
-COPY package.json /usr/src/app
-COPY package-lock.json /usr/src/app
-
-#Execute commands in a new layer on top of the current image and commit the results
-RUN npm install
-
-##Copy new files or directories into the filesystem of the container
-COPY . /usr/src/app
-
-#Execute commands in a new layer on top of the current image and commit the results
+FROM node:14-alpine AS builder
+WORKDIR /app
+COPY . .
+COPY --from=deps /app/node_modules ./node_modules
 RUN npm run build
 
-#Informs container runtime that the container listens on the specified network ports at runtime
+FROM node:14-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV production
+RUN addgroup -g 1001 -S nodejs
+RUN adduser -S nextjs -u 1001
+COPY --from=builder /app/next.config.js ./
+COPY --from=builder /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next ./.next
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./package.json
+USER nextjs
 EXPOSE 3000
+ENV PORT 3000
 
-#Allows you to configure a container that will run as an executable
-ENTRYPOINT ["npm", "run", "start"]
+CMD ["npm", "run", "start"]

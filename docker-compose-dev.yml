@@ -8,8 +8,4 @@ services:
     container_name: 'next-example-dev'
     ports:
       - '15011:3000'
-    volumes:
-      - .:/usr/src/app
-      - /usr/src/app/node_modules
-      - /usr/src/app/.next
     restart: always
