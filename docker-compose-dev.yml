@@ -7,5 +7,5 @@ services:
     image: registry.gitlab.com/rendiriz/next-example:dev
     container_name: 'next-example-dev'
     ports:
-      - '15000:3000'
+      - '15011:3000'
     restart: always
