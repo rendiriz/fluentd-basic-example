@@ -1,0 +1,37 @@
+version: '3'
+
+services:
+  mongo:
+    image: mongo:5.0.6
+    hostname: mongo
+    container_name: fluentd-basic-mongo
+    ports:
+      - '27017:27017'
+    volumes:
+      - ./mongo/data/db:/data/db
+    networks:
+      - fluentd-basic-network
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+
+  fluentd:
+    image: fluent/fluentd:v1.14.5-debian-1.0
+    hostname: fluentd
+    container_name: fluentd-basic-fluentd
+    user: root
+    build: 
+      context: .
+      dockerfile: .docker/fluentd.dockerfile
+    ports:
+      - '24224:24224'
+      - '9880:9880'
+    volumes:
+      - ./fluentd/conf:/fluentd/etc
+    networks:
+      - fluentd-basic-network
+
+networks:
+  fluentd-basic-network:
+    driver: bridge
+    name: fluentd-basic-network
