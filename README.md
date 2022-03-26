@@ -1,1 +1,1 @@
-# FLuentd Basic Example
+# Fluentd Basic Example
