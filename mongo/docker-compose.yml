@@ -1,0 +1,30 @@
+version: '3'
+
+services:
+  mongo:
+    image: mongo:5.0.6
+    hostname: mongo
+    container_name: fluentd-basic-mongo
+    ports:
+      - '27017:27017'
+    volumes:
+      - fluentd-basic-mongo-data:/data/db
+    networks:
+      - fluentd-basic-network
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+
+volumes:
+  fluentd-basic-mongo-data:
+    name: fluentd-basic-mongo-data
+    driver: local
+    driver_opts:
+      o: bind
+      type: none
+      device: /data/db
+
+networks:
+  fluentd-basic-network:
+    driver: bridge
+    name: fluentd-basic-network
