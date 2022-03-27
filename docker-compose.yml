@@ -16,6 +16,11 @@ services:
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
 
   fluentd:
+    depends_on:
+      es01:
+        condition: service_healthy
+      es02:
+        condition: service_healthy
     image: fluent/fluentd:v1.14.5-debian-1.0
     hostname: fluentd
     container_name: fluentd-basic-fluentd
@@ -23,30 +28,174 @@ services:
     build: 
       context: .
       dockerfile: .docker/fluentd.dockerfile
-    depends_on:
-      - mongo
     ports:
       - 24224:24224
       - 9880:9880
     volumes:
       - /var/lib/docker/containers:/fluentd/log/containers
+      - ./elastic/certs:/etc/certs
       - ./fluentd/conf:/fluentd/etc
     networks:
       - fluentd-basic-network
 
-  # log:
-  #   image: alpine
-  #   hostname: log
-  #   container_name: fluentd-basic-log
-  #   depends_on:
-  #     - mongo
-  #     - fluentd
-  #   volumes:
-  #     - ./log:/app
-  #     - /var/lib/docker/containers:/fluentd/log/containers
-  #   command: [ /bin/sh , -c , "apk add --no-cache curl && chmod +x /app/app.sh && ./app/app.sh"]
-  #   networks:
-  #     - fluentd-basic-network
+  log:
+    image: alpine
+    hostname: log
+    container_name: fluentd-basic-log
+    depends_on:
+      - mongo
+      - fluentd
+    volumes:
+      - ./log:/app
+      - /var/lib/docker/containers:/fluentd/log/containers
+    command: [ /bin/sh , -c , "apk add --no-cache curl && chmod +x /app/app.sh && ./app/app.sh"]
+    networks:
+      - fluentd-basic-network
+
+  setup:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION}
+    volumes:
+      - ./elastic/certs:/usr/share/elasticsearch/config/certs
+    user: "0"
+    command: >
+      bash -c '
+        echo "Setting file permissions"
+        chown -R root:root config/certs;
+        find . -type d -exec chmod 750 \{\} \;;
+        find . -type f -exec chmod 640 \{\} \;;
+        echo "Waiting for Elasticsearch availability";
+        until curl -s --cacert config/certs/snakeoil-wj-1.crt https://es01:9200 | grep -q "missing authentication credentials"; do sleep 30; done;
+        echo "Setting kibana_system password";
+        until curl -s -X POST --cacert config/certs/snakeoil-wj-1.crt -u elastic:${ELASTIC_PASSWORD} -H "Content-Type: application/json" https://es01:9200/_security/user/kibana_system/_password -d "{\"password\":\"${KIBANA_PASSWORD}\"}" | grep -q "^{}"; do sleep 10; done;
+        echo "All done!";
+      '
+    healthcheck:
+      test: ["CMD-SHELL", "[ -f config/certs/es01-wj1-signed.crt ]"]
+      interval: 1s
+      timeout: 5s
+      retries: 120
+    networks:
+      - fluentd-basic-network
+
+  es01:
+    depends_on:
+      setup:
+        condition: service_healthy
+    image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION}
+    hostname: es01
+    volumes:
+      - ./elastic/certs:/usr/share/elasticsearch/config/certs
+      - ./elastic/esdata01:/usr/share/elasticsearch/data
+    ports:
+      - ${ES_PORT}:9200
+    environment:
+      - node.name=es01
+      - cluster.name=${CLUSTER_NAME}
+      - cluster.initial_master_nodes=es01,es02
+      - discovery.seed_hosts=es02
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+      - bootstrap.memory_lock=true
+      - xpack.security.enabled=true
+      - xpack.security.http.ssl.enabled=true
+      - xpack.security.http.ssl.key=certs/es01.key
+      - xpack.security.http.ssl.certificate=certs/es01-wj1-signed.crt
+      - xpack.security.http.ssl.certificate_authorities=certs/snakeoil-wj-1.crt
+      - xpack.security.http.ssl.verification_mode=certificate
+      - xpack.security.transport.ssl.enabled=true
+      - xpack.security.transport.ssl.key=certs/es01.key
+      - xpack.security.transport.ssl.certificate=certs/es01-wj1-signed.crt
+      - xpack.security.transport.ssl.certificate_authorities=certs/snakeoil-wj-1.crt
+      - xpack.security.transport.ssl.verification_mode=certificate
+      - xpack.license.self_generated.type=${LICENSE}
+    mem_limit: ${MEM_LIMIT}
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -s --cacert config/certs/snakeoil-wj-1.crt https://localhost:9200 | grep -q 'missing authentication credentials'",
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 120
+    networks:
+      - fluentd-basic-network
+
+  es02:
+    depends_on:
+      - es01
+    image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION}
+    volumes:
+      - ./elastic/certs:/usr/share/elasticsearch/config/certs
+      - ./elastic/esdata02:/usr/share/elasticsearch/data
+    environment:
+      - node.name=es02
+      - cluster.name=${CLUSTER_NAME}
+      - cluster.initial_master_nodes=es01,es02
+      - discovery.seed_hosts=es01
+      - bootstrap.memory_lock=true
+      - xpack.security.enabled=true
+      - xpack.security.http.ssl.enabled=true
+      - xpack.security.http.ssl.key=certs/es02.key
+      - xpack.security.http.ssl.certificate=certs/es02-wj1-signed.crt
+      - xpack.security.http.ssl.certificate_authorities=certs/snakeoil-wj-1.crt
+      - xpack.security.http.ssl.verification_mode=certificate
+      - xpack.security.transport.ssl.enabled=true
+      - xpack.security.transport.ssl.key=certs/es02.key
+      - xpack.security.transport.ssl.certificate=certs/es02-wj1-signed.crt
+      - xpack.security.transport.ssl.certificate_authorities=certs/snakeoil-wj-1.crt
+      - xpack.security.transport.ssl.verification_mode=certificate
+      - xpack.license.self_generated.type=${LICENSE}
+    mem_limit: ${MEM_LIMIT}
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -s --cacert config/certs/snakeoil-wj-1.crt https://localhost:9200 | grep -q 'missing authentication credentials'",
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 120
+    networks:
+      - fluentd-basic-network
+
+  kibana:
+    depends_on:
+      es01:
+        condition: service_healthy
+      es02:
+        condition: service_healthy
+    image: docker.elastic.co/kibana/kibana:${STACK_VERSION}
+    volumes:
+      - ./elastic/certs:/usr/share/kibana/config/certs
+      - ./elastic/kibanadata:/usr/share/kibana/data
+    ports:
+      - ${KIBANA_PORT}:5601
+    environment:
+      - SERVERNAME=kibana
+      - ELASTICSEARCH_HOSTS=https://es01:9200
+      - ELASTICSEARCH_USERNAME=kibana_system
+      - ELASTICSEARCH_PASSWORD=${KIBANA_PASSWORD}
+      - ELASTICSEARCH_SSL_CERTIFICATEAUTHORITIES=config/certs/snakeoil-wj-1.crt
+    mem_limit: ${MEM_LIMIT}
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -s -I http://localhost:5601 | grep -q 'HTTP/1.1 302 Found'",
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 120
+    networks:
+      - fluentd-basic-network
 
 networks:
   fluentd-basic-network:

@@ -6,7 +6,7 @@ RUN buildDeps="sudo make gcc g++ libc-dev" \
   && apt-get update \
   && apt-get install -y --no-install-recommends $buildDeps \
   && sudo gem install fluent-plugin-mongo \
-  && sudo gem install fluent-plugin-elasticsearch \
+  && sudo gem install fluent-plugin-elasticsearch --no-document --version 5.2.1 \
   && sudo gem sources --clear-all \
   && SUDO_FORCE_REMOVE=yes \
   apt-get purge -y --auto-remove \

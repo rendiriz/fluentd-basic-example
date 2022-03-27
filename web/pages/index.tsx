@@ -32,10 +32,10 @@ const Home: NextPage = () => {
         </p>
 
         <div>
-          <button onClick={() => handleClick("one")}>One</button>
+          <button onClick={() => handleClick("Log 1")}>Send Log 1</button>
         </div>
         <div>
-          <button onClick={() => handleClick("two")}>Two</button>
+          <button onClick={() => handleClick("Log 2")}>Send Log 2</button>
         </div>
       </main>
     </div>
