@@ -32,25 +32,25 @@ services:
       - 24224:24224
       - 9880:9880
     volumes:
-      - /var/lib/docker/containers:/fluentd/log/containers
+      - ./nginx/log:/fluentd/log/nginx
       - ./elastic/certs:/etc/certs
       - ./fluentd/conf:/fluentd/etc
     networks:
       - fluentd-basic-network
 
-  log:
-    image: alpine
-    hostname: log
-    container_name: fluentd-basic-log
-    depends_on:
-      - mongo
-      - fluentd
-    volumes:
-      - ./log:/app
-      - /var/lib/docker/containers:/fluentd/log/containers
-    command: [ /bin/sh , -c , "apk add --no-cache curl && chmod +x /app/app.sh && ./app/app.sh"]
-    networks:
-      - fluentd-basic-network
+  # log:
+  #   image: alpine
+  #   hostname: log
+  #   container_name: fluentd-basic-log
+  #   depends_on:
+  #     - mongo
+  #     - fluentd
+  #   volumes:
+  #     - ./log:/app
+  #     - /var/lib/docker/containers:/fluentd/log/containers
+  #   command: [ /bin/sh , -c , "apk add --no-cache curl && chmod +x /app/app.sh && ./app/app.sh"]
+  #   networks:
+  #     - fluentd-basic-network
 
   setup:
     image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION}
@@ -194,6 +194,18 @@ services:
       interval: 10s
       timeout: 10s
       retries: 120
+    networks:
+      - fluentd-basic-network
+
+  nginx:
+    image: nginx:1.21.6
+    hostname: nginx
+    container_name: fluentd-basic-nginx
+    ports:
+      - '80:80'
+    volumes:
+      - ./nginx/html:/usr/share/nginx/html
+      - ./nginx/log:/var/log/nginx
     networks:
       - fluentd-basic-network
 
